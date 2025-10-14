@@ -1,0 +1,6 @@
+[
+  { "time": "08:30", "subject": "Mathematics", "room": "301", "className": "M3-A" },
+  { "time": "10:00", "subject": "Science", "room": "302", "className": "M3-A" },
+  { "time": "13:00", "subject": "English", "room": "204", "className": "M3-B" }
+]
+

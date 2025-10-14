@@ -1,0 +1,77 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: mis_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mis}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mis_pw}
+      POSTGRES_DB: ${POSTGRES_DB:-mis_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: mis_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./apps/api
+    container_name: mis_api
+    env_file:
+      - ./infra/.env
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./apps/api:/usr/src/app
+      - /usr/src/app/node_modules
+    command: npm run dev
+
+  ml:
+    build: ./apps/ml
+    container_name: mis_ml
+    env_file:
+      - ./infra/.env
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./apps/ml:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  web:
+    build: ./apps/web
+    container_name: mis_web
+    env_file:
+      - ./infra/.env
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./apps/web:/usr/src/app
+      - /usr/src/app/node_modules
+    command: npm run dev -- --host
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+
+

@@ -1,0 +1,137 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         Role
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  parentOf     Student[] @relation("ParentStudents")
+  teacher      Teacher?
+}
+
+model Student {
+  id          String   @id @default(cuid())
+  studentCode String   @unique
+  firstName   String
+  lastName    String
+  dob         DateTime?
+  gradeLevel  String?
+  className   String?
+  photoUrl    String?
+  parent      User?    @relation("ParentStudents", fields: [parentId], references: [id])
+  parentId    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  attendance  Attendance[]
+  grades      Grade[]
+  aiProfiles  AiProfile[]
+  payments    Payment[]
+}
+
+model Teacher {
+  id         String  @id @default(cuid())
+  user       User    @relation(fields: [userId], references: [id])
+  userId     String  @unique
+  department String?
+  subjects   String[]
+}
+
+model Attendance {
+  id        String   @id @default(cuid())
+  student   Student  @relation(fields: [studentId], references: [id])
+  studentId String
+  date      DateTime
+  status    AttendanceStatus
+  note      String?
+
+  @@index([studentId, date])
+}
+
+enum AttendanceStatus {
+  present
+  absent
+  late
+  excused
+}
+
+model Grade {
+  id         String   @id @default(cuid())
+  student    Student  @relation(fields: [studentId], references: [id])
+  studentId  String
+  subjectCode String
+  term       String
+  score      Float
+  maxScore   Float
+  teacher    Teacher? @relation(fields: [teacherId], references: [id])
+  teacherId  String?
+  createdAt  DateTime @default(now())
+
+  @@index([studentId, term])
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  body      String
+  audience  Audience
+  audienceFilter Json?
+  createdBy User     @relation(fields: [createdById], references: [id])
+  createdById String
+  createdAt  DateTime @default(now())
+}
+
+enum Audience {
+  all
+  grade
+  class
+  custom
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  student   Student  @relation(fields: [studentId], references: [id])
+  studentId String
+  amount    Float
+  dueDate   DateTime
+  paidAt    DateTime?
+  status    PaymentStatus
+  metadata  Json?
+
+  @@index([studentId, status])
+}
+
+enum PaymentStatus {
+  unpaid
+  paid
+  overdue
+}
+
+model AiProfile {
+  id                 String   @id @default(cuid())
+  student            Student  @relation(fields: [studentId], references: [id])
+  studentId          String
+  createdAt          DateTime @default(now())
+  summary            String
+  recommendedTracks  String[]
+  confidenceScores   Json
+  explanationText    String
+  modelVersion       String?
+}
+
+enum Role {
+  admin
+  teacher
+  parent
+  student
+}
+
+
