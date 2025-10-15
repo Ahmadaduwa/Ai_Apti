@@ -1,6 +1,6 @@
-# School MIS + AI Analytics (MVP)
+# Ai-Apit
 
-ระบบต้นแบบ (MVP) สำหรับงานบริหารโรงเรียน + โมดูลวิเคราะห์แนวถนัด/อาชีพด้วย AI
+ระบบต้นแบบ (MVP) สำหรับงานบริหารโรงเรียน พร้อมโมดูลวิเคราะห์แนวถนัด/อาชีพด้วย AI
 
 ## เทคโนโลยีหลัก
 - Backend API: Node.js (Express + TypeScript)
@@ -10,46 +10,59 @@
 - Cache/Session/Queue: Redis
 - รันด้วย Docker Compose
 
-## วิธีรัน (แนะนำให้ใช้ Docker)
+## รันโครงการ (แนะนำใช้ Docker)
 
-1) ติดตั้งสิ่งที่ต้องมี
-- ติดตั้ง Docker Desktop และเปิดใช้งาน
-- พอร์ตที่ต้องว่าง: 3001 (API), 8000 (ML), 5173 (Web), 5432 (Postgres), 6379 (Redis)
+1) ติดตั้งข้อกำหนด
+- ติดตั้ง Docker Desktop และเปิดให้ทำงาน (หรือใช้งาน Docker daemon ใน WSL)
+- พอร์ตที่ต้องว่าง (ค่าเริ่มต้นของ compose):
+  - API: 3001
+  - ML: 8001 (mapped to container 8000)
+  - Web (dev): 5173
+  - Postgres: 5432
+  - Redis: 6379
 
-2) ตั้งค่า Environment
-- คัดลอกไฟล์ตัวอย่างไปใช้งานจริง
+2) ตั้งค่า environment
+- คัดลอกไฟล์ตัวอย่างไปเป็นไฟล์จริง
 ```
 cp infra/.env.sample infra/.env
 ```
-- ปรับค่าใน `infra/.env` ได้ตามต้องการ โดยค่าเริ่มต้นที่สำคัญคือ:
-  - `DATABASE_URL=postgresql://mis:mis_pw@postgres:5432/mis_db`
-  - `CORS_ORIGIN=http://localhost:5173`
-  - `ML_BASE_URL=http://ml:8000`
-  - `DEMO_MODE=true` (เปิดโหมดเดโม่เพื่อทดลองเร็ว ๆ ด้วยโทเคน `demo`)
+- ปรับค่าใน `infra/.env` ตามความต้องการ (สำคัญ: `DATABASE_URL`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`)
 
-3) สตาร์ททุกบริการ
+3) สตาร์ททั้งหมดด้วย Docker Compose
 ```
 docker compose up -d --build
 ```
-- คำสั่งนี้จะสตาร์ท Postgres, Redis, API, ML, และ Web ให้พร้อมใช้งาน
-- ครั้งแรกของ API จะรัน `prisma generate` และ `prisma db push` ให้อัตโนมัติ (สร้างสคีมาใน Postgres)
+- คำสั่งนี้จะสร้างและรันบริการทั้งหมด: Postgres, Redis, API, ML, Web
+- ระหว่างการ build ตัว API จะรัน `npx prisma generate` และใน entrypoint จะรัน `npx prisma migrate deploy` ก่อนสตาร์ทเซิร์ฟเวอร์
 
-4) เปิดใช้งาน
-- API Health: http://localhost:3001/healthz
-- ML Health: http://localhost:8001/healthz
-- Web App: http://localhost:5173
+4) ตรวจสอบสถานะบริการ / health
+- ตรวจสอบคอนเทนเนอร์ที่รัน:
+```
+docker compose ps
+```
+- ดู logs ของ API (ตัวอย่าง):
+```
+docker compose logs -f api
+```
+- Health endpoints ที่ใช้ใน compose/entrypoint:
+  - API health: `GET http://localhost:3001/health` (returns 200)
+  - ML health (ถ้ามี): `http://localhost:8001` (ขึ้นกับการตั้งค่า ML)
+  - Web dev server: `http://localhost:5173` (Vite)
 
-5) การล็อกอิน/ทดสอบอย่างรวดเร็ว (โหมดเดโม่)
-- ถ้า `DEMO_MODE=true` สามารถเรียก API ด้วย Header: `Authorization: Bearer demo`
-- Frontend ตัวอย่างเรียกด้วยโทเคนเดโม่อยู่แล้ว เพื่อให้หน้า Student โหลดข้อมูลได้ทันที
+5) รีเซ็ตฐานข้อมูล (ถ้าต้องการเริ่มใหม่)
+- คำเตือน: จะลบข้อมูลใน volume ของ Postgres
+```
+docker compose down -v
+docker compose up -d --build
+```
 
-6) บัญชีผู้ดูแลระบบ (seed อัตโนมัติ)
-- ระบบจะสร้างผู้ใช้แอดมินถ้ายังไม่มี: `admin@example.com` / รหัสผ่าน `password`
-- ทดสอบ Auth แบบจริงได้ที่
-  - `POST http://localhost:3001/api/auth/register`
-  - `POST http://localhost:3001/api/auth/login`
-  - `POST http://localhost:3001/api/auth/refresh`
-  - `POST http://localhost:3001/api/auth/logout`
+6) การล็อกอิน/ทดสอบ API
+- ระบบตัวอย่างมี endpoints สำหรับ auth:
+  - `POST /api/auth/register`
+  - `POST /api/auth/login`
+  - `POST /api/auth/refresh`
+  - `POST /api/auth/logout`
+- ขณะนี้ไม่มีการ seed ผู้ดูแล (admin) อัตโนมัติ ในกรณีต้องการ ให้สร้างผู้ใช้ผ่าน endpoint ข้างต้นหรือลงข้อมูลโดยตรงในฐานข้อมูล
 
 ## จุดเชื่อม API ที่มีใน MVP
 - `GET /api/students/:id` (ตรวจสิทธิ: parent-owner/teacher/admin)
@@ -67,20 +80,40 @@ docker compose up -d --build
   - `src/styles` — Tailwind global styles
 - `infra` — ไฟล์ env และเอกสาร
 
-## Frontend (dev-only) Setup
-หากต้องการรันเฉพาะ Frontend สำหรับการพรีเซนต์:
+## Frontend
+
+Dev (fast feedback)
+- ถ้าต้องการรันเฉพาะ frontend ในโหมด dev (ไม่ใช้ Docker):
 ```
 cd apps/web
 npm install
 npm run dev -- --host
 ```
-เปิดที่ http://localhost:5173
+จากนั้นเปิด http://localhost:5173
+
+Docker (dev inside container)
+- Compose ใน repo ถูกตั้งให้ใช้ `web` builder stage ในการรัน dev (มี `npm` อยู่ใน builder) — ถ้าต้องการให้ compose รัน builder stage และ `npm run dev` ให้รัน:
+```
+docker compose up --build web
+```
+
+Production / static serving
+- Dockerfile ของ `apps/web` มีสอง stage (builder + nginx runtime). สำหรับ production ให้ใช้ nginx runtime (ลบ/ไม่ตั้ง `target: builder` ใน compose) เพื่อให้ได้ภาพที่เล็กลงและเสิร์ฟไฟล์ static โดย nginx
 
 
 ## เคล็ดลับ/ปัญหาที่พบบ่อย
-- ถ้าหน้าเว็บเรียก API ข้ามโดเมนไม่ได้ ให้ตรวจ `CORS_ORIGIN` ใน `infra/.env`
-- ถ้า API ต่อฐานข้อมูลไม่ได้ ให้ตรวจ `DATABASE_URL` และดูว่า container `postgres` รันอยู่หรือไม่ (`docker ps`)
-- ถ้ามีการแก้สคีมาของ Prisma ให้สั่ง build ใหม่ หรือเข้า container API แล้วรัน `npm run prisma:push`
+- ถ้าเว็บไม่สามารถเรียก API ข้ามโดเมน ให้ตรวจค่า `CORS_ORIGIN` ใน `infra/.env`
+- ถ้า API ต่อฐานข้อมูลไม่ได้ ให้ตรวจ `DATABASE_URL` และดูว่า container `postgres` รันอยู่ (`docker ps`) และ health ของ postgres ผ่าน (`pg_isready`)
+- ถ้ามีการแก้ schema ของ Prisma แล้วต้องการอัพเดตฐานข้อมูลใน production ให้ใช้ migration flow (`npx prisma migrate dev` หรือ `npx prisma migrate deploy` ใน pipeline) — entrypoint ของ API จะเรียก `prisma migrate deploy` ตอนสตาร์ท
+- ถ้าติดปัญหา native modules (เช่น `argon2`) ให้แน่ใจว่า `node_modules` ถูกติดตั้งและคอมไพล์ภายในภาพ (ไม่ใช่คัดลอกจากเครื่อง host) — compose ถูกปรับให้ติดตั้ง deps ใน builder stage
+
+## คำแนะนำเพิ่มเติม
+- แยกการตั้งค่า dev/production โดยใช้ `docker-compose.override.yml` สำหรับการ mount โฟลเดอร์ และตั้ง `web` เป็น builder target ใน dev
+- เพิ่มขั้นตอน CI ที่รัน `docker compose build` และ `npx prisma migrate deploy` เพื่อจับปัญหา build/migrations ก่อน deploy
+
+---
+
+หากต้องการให้ผมสร้าง `docker-compose.override.yml` สำหรับ dev หรือแก้ README เป็นภาษาอังกฤษด้วย แจ้งได้เลย
 
 ## แผนพัฒนาต่อ
 - เติมตาราง/เอ็นพอยต์ Attendance, Grades, Announcements, Payments ให้ครบ
