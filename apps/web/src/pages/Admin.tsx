@@ -1,7 +1,7 @@
 import React, { Suspense } from 'react';
 import PageHeader from '@/components/PageHeader';
 import { Card, CardBody } from '@/components/Card';
-import { stats, actions, attendanceData } from '@/data/adminMockData'; // Assuming mock data is moved
+import { stats, actions, attendanceData } from '@/data/adminMockData'; // Adjusted import path
 
 // Lazy load the DonutChart component
 const DonutChart = React.lazy(() => import('@/components/DonutChart'));

@@ -3,24 +3,27 @@ version: "3.9"
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: mis_postgres
+    container_name: ai_apti_postgres
+    env_file:
+      - ./infra/.env
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-mis}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mis_pw}
-      POSTGRES_DB: ${POSTGRES_DB:-mis_db}
+      POSTGRES_USER: ${POSTGRES_USER:-ai_apti}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ai_aptiude}
+      POSTGRES_DB: ${POSTGRES_DB:-ai_apti_db}
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
 
   redis:
     image: redis:7-alpine
-    container_name: mis_redis
+    container_name: ai_apti_redis
     ports:
       - "6379:6379"
     healthcheck:
@@ -30,8 +33,10 @@ services:
       retries: 10
 
   api:
-    build: ./apps/api
-    container_name: mis_api
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: ai_apti_api
     env_file:
       - ./infra/.env
     ports:
@@ -41,37 +46,59 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    # สำหรับ production: อย่า mount source (ใช้ node_modules จาก image)
+    # สำหรับ dev: ใช้ docker-compose.override.yml เพื่อ mount source แยกไฟล์
     volumes:
-      - ./apps/api:/usr/src/app
-      - /usr/src/app/node_modules
-    command: npm run dev
+      - api_node_modules:/usr/src/app/node_modules
+    command: ["node", "entrypoint.js"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3001/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   ml:
-    build: ./apps/ml
-    container_name: mis_ml
+    build:
+      context: ./apps/ml
+      dockerfile: Dockerfile
+    container_name: ai_apti_ml
     env_file:
       - ./infra/.env
     ports:
+      # ผมเปลี่ยนให้ชัดเจน: host 8001 -> container 8000 (หรือใช้ 8000:8000)
       - "8001:8000"
     volumes:
       - ./apps/ml:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    # dev: --reload OK; production: remove --reload
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   web:
-    build: ./apps/web
-    container_name: mis_web
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      # Use the builder stage (node) when running dev so `npm` is available.
+      # For production/static serving, remove `target` to use the nginx runtime stage.
+      target: builder
+    container_name: ai_apti_web
     env_file:
       - ./infra/.env
     ports:
       - "5173:5173"
-    volumes:
-      - ./apps/web:/usr/src/app
-      - /usr/src/app/node_modules
-    command: npm run dev -- --host
+    # For dev you may mount source files via docker-compose.override.yml
+    # Remove/comment the volumes below in production to use the built image's dist
+    # volumes:
+    #   - ./apps/web/src:/usr/src/app/src:cached
+    #   - ./apps/web/public:/usr/src/app/public:cached
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
 volumes:
   pgdata:
-
-
+  api_node_modules:

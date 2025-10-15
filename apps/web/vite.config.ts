@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import path from 'path' // <-- Import path module
+import { fileURLToPath, URL } from 'url'
 
 export default defineConfig({
   plugins: [react()],
@@ -11,7 +11,8 @@ export default defineConfig({
   // Add resolver for path aliases
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      // Use fileURLToPath so aliases work in ESM + container environments
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
-  },
+  }
 })

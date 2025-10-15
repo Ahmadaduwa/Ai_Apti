@@ -1,8 +1,14 @@
-FROM node:20-alpine
+# build stage
+FROM node:20-bullseye-slim AS builder
 WORKDIR /usr/src/app
-COPY package.json package-lock.json* ./
-RUN npm install --legacy-peer-deps || npm install
+COPY package*.json ./
+RUN npm ci
 COPY . .
-EXPOSE 5173
-CMD ["npm", "run", "dev", "--", "--host"]
+RUN npm run build
 
+# runtime (nginx)
+FROM nginx:alpine AS runtime
+COPY --from=builder /usr/src/app/dist /usr/share/nginx/html
+# optional: copy custom nginx.conf
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
